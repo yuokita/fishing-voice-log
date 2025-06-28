@@ -5,8 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>釣りボイスメモ</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css"/>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css"/>
   <style>
     body { font-family: sans-serif; padding: 1em; }
     #recordBtn, #loginBtn {
@@ -26,7 +24,7 @@
     #map { height: 600px; margin-top: 1em; }
     .month-group { margin-top: 1em; }
     .month-title { font-weight: bold; font-size: 1.1em; margin-top: 1em; border-bottom: 1px solid #ccc; }
-    .log-entry { margin-top: 0.3em; cursor: pointer; }
+    .log-entry { margin-top: 0.3em; }
     button.log-action {
       padding: 0.2em 0.6em;
       font-size: 0.9em;
@@ -53,7 +51,6 @@
   <div id="map"></div>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
     import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-auth.js";
@@ -66,7 +63,8 @@
       projectId: "fishing-voice-memo",
       storageBucket: "fishing-voice-memo.appspot.com",
       messagingSenderId: "731122386505",
-      appId: "1:731122386505:web:6fbd6a5b6821ab278e6198"
+      appId: "1:731122386505:web:6fbd6a5b6821ab278e6198",
+      measurementId: "G-8PYGLXHLC2"
     };
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
@@ -81,12 +79,12 @@
     const searchBox = document.getElementById('searchBox');
 
     const map = L.map('map').setView([34.6937, 135.5023], 10);
-    const markerCluster = L.markerClusterGroup();
-    map.addLayer(markerCluster);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
 
     let currentUser = null;
     let attachTargetDocId = null;
-    let markerMap = {};
 
     loginBtn.onclick = async () => {
       const provider = new GoogleAuthProvider();
@@ -96,7 +94,7 @@
     onAuthStateChanged(auth, user => {
       if (user) {
         currentUser = user;
-        status.textContent = `ステータス: ${user.displayName} でログイン中`;
+        status.textContent = ステータス: ${user.displayName} でログイン中;
         recordBtn.disabled = false;
         loginBtn.style.display = 'none';
         loadLogs();
@@ -109,10 +107,11 @@
 
     async function loadLogs() {
       logsDiv.innerHTML = '';
-      markerCluster.clearLayers();
-      markerMap = {};
+      map.eachLayer(layer => {
+        if (layer instanceof L.Marker) map.removeLayer(layer);
+      });
 
-      const snapshot = await getDocs(collection(db, `users/${currentUser.uid}/logs`));
+      const snapshot = await getDocs(collection(db, users/${currentUser.uid}/logs));
       const allLogs = [];
       snapshot.forEach(docSnap => {
         const data = docSnap.data();
@@ -122,7 +121,7 @@
       const grouped = {};
       allLogs.forEach(entry => {
         const d = dataToDate(entry.timestamp);
-        const key = `${d.getFullYear()}年${(d.getMonth()+1).toString().padStart(2,'0')}月`;
+        const key = ${d.getFullYear()}年${(d.getMonth()+1).toString().padStart(2,'0')}月;
         if (!grouped[key]) grouped[key] = [];
         grouped[key].push(entry);
       });
@@ -130,37 +129,28 @@
       Object.keys(grouped).sort((a,b)=>b.localeCompare(a)).forEach(month => {
         const monthDiv = document.createElement('div');
         monthDiv.className = 'month-group';
-        monthDiv.innerHTML = `<div class="month-title">${month}</div>`;
+        monthDiv.innerHTML = <div class="month-title">${month}</div>;
         grouped[month].forEach(entry => {
           const div = document.createElement('div');
           div.className = 'log-entry';
-          const uniqueId = `log-${entry.id}`;
+          const uniqueId = log-${entry.id};
           div.id = uniqueId;
-          let photoHtml = entry.photoUrl ? `<img src="${entry.photoUrl}" class="log-photo">` : '';
-          div.innerHTML = `
+          let photoHtml = entry.photoUrl ? <img src="${entry.photoUrl}" class="log-photo"> : '';
+          div.innerHTML = 
             <strong>${entry.text}</strong>
             <button class="log-action" onclick="editLog('${entry.id}', '${entry.text.replace(/'/g,"\\'")}')">✏️ 編集</button>
             <button class="log-action" onclick="attachPhoto('${entry.id}')">📸 写真追加</button>
             <button class="log-action" onclick="deleteLog('${entry.id}')">🗑️ 削除</button>
             ${photoHtml}
             <br><small>${dataToDate(entry.timestamp).toLocaleString()}</small>
-          `;
-          div.onclick = () => {
-            const marker = markerMap[entry.id];
-            if (marker) {
-              map.setView(marker.getLatLng(), 16);
-              marker.openPopup();
-            }
-          };
+          ;
           monthDiv.appendChild(div);
-
-          const marker = L.marker([entry.lat, entry.lng], { icon: getRandomColorIcon() })
+          L.marker([entry.lat, entry.lng], { icon: getRandomColorIcon() })
+            .addTo(map)
             .bindPopup(entry.text)
             .on('click', () => {
               document.getElementById(uniqueId).scrollIntoView({ behavior: 'smooth' });
             });
-          markerMap[entry.id] = marker;
-          markerCluster.addLayer(marker);
         });
         logsDiv.appendChild(monthDiv);
       });
@@ -180,7 +170,7 @@
     }
 
     async function saveLog(text, lat, lng) {
-      await addDoc(collection(db, `users/${currentUser.uid}/logs`), {
+      await addDoc(collection(db, users/${currentUser.uid}/logs), {
         text, lat, lng, timestamp: serverTimestamp()
       });
       loadLogs();
@@ -189,7 +179,7 @@
     window.editLog = async (docId, currentText) => {
       const newText = prompt("新しいメモを入力してください", currentText);
       if (!newText) return;
-      await updateDoc(doc(db, `users/${currentUser.uid}/logs/${docId}`), {
+      await updateDoc(doc(db, users/${currentUser.uid}/logs/${docId}), {
         text: newText
       });
       loadLogs();
@@ -197,7 +187,7 @@
 
     window.deleteLog = async (docId) => {
       if (!confirm("本当に削除しますか？")) return;
-      await deleteDoc(doc(db, `users/${currentUser.uid}/logs/${docId}`));
+      await deleteDoc(doc(db, users/${currentUser.uid}/logs/${docId}));
       loadLogs();
     };
 
@@ -209,10 +199,10 @@
     photoInput.onchange = async (e) => {
       const file = e.target.files[0];
       if (!file || !attachTargetDocId) return;
-      const storageRef = ref(storage, `users/${currentUser.uid}/${Date.now()}_${file.name}`);
+      const storageRef = ref(storage, users/${currentUser.uid}/${Date.now()}_${file.name});
       await uploadBytes(storageRef, file);
       const downloadURL = await getDownloadURL(storageRef);
-      await updateDoc(doc(db, `users/${currentUser.uid}/logs/${attachTargetDocId}`), {
+      await updateDoc(doc(db, users/${currentUser.uid}/logs/${attachTargetDocId}), {
         photoUrl: downloadURL
       });
       attachTargetDocId = null;
@@ -249,7 +239,7 @@
       const colors = ['red', 'blue', 'green', 'orange', 'purple'];
       const color = colors[Math.floor(Math.random() * colors.length)];
       return new L.Icon({
-        iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
+        iconUrl: https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png,
         shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
         iconSize: [25, 41],
         iconAnchor: [12, 41],
