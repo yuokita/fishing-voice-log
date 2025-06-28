@@ -81,6 +81,13 @@
     const searchBox = document.getElementById('searchBox');
 
     const map = L.map('map', { maxZoom: 18 }).setView([34.6937, 135.5023], 10);
+
+    // ⭐️ tileLayerを必ず追加
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
     const markerCluster = L.markerClusterGroup();
     map.addLayer(markerCluster);
 
@@ -189,9 +196,7 @@
     window.editLog = async (docId, currentText) => {
       const newText = prompt("新しいメモを入力してください", currentText);
       if (!newText) return;
-      await updateDoc(doc(db, `users/${currentUser.uid}/logs/${docId}`), {
-        text: newText
-      });
+      await updateDoc(doc(db, `users/${currentUser.uid}/logs/${docId}`), { text: newText });
       loadLogs();
     };
 
